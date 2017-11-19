@@ -1,0 +1,425 @@
+<!doctype html>
+<html>
+<head>
+  <title>Graph 3D cloud with colored dots</title>
+
+  <style>
+    body {font: 10pt arial;}
+  </style>
+
+  <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"></script>
+
+
+  <script type="text/javascript">
+    
+
+
+    var adjacentMode = 'adjacent26';
+    var data = null;
+    var newData = null;
+    var graph = null;
+    var liveStyle = "rgba(0,200,0,0.5)";
+    var colorAmplitude = 0.5;
+    var stableIteration = 0;
+
+    cubeSide = 10;
+
+    var interval = setInterval(updateData, 500);
+    
+    function reloadParameters() {
+      adjacentMode = document.getElementById("adjacentMode").value;
+      console.log(adjacentMode);
+    }
+
+    function pentadecathlon(x, y, z) {
+        return ((x==center-5 && y==center-5) || (x==center-4 && y==center-5) || (x==center-3 && y==center-4) || (x==center-3 && y==center-6) || (x==center-2 && y==center-5) || (x==center-1 && y==center-5) || (x==center && y==center-5) || (x==center+1 && y==center-5) || (x==center+2 && y==center-4) || (x==center+2 && y==center-6) || (x==center+3 && y==center-5) || (x==center+4 && y==center-5)) && z==center;
+      }
+
+      function tube(x, y, z) {
+        return ((x==center-5)
+            || (x==center-4)
+            || (x==center-3) 
+            || (x==center-2)
+            || (x==center-1)
+            || (x==center)
+            || (x==center+1)
+            || (x==center+2) 
+            || (x==center+3) 
+            || (x==center+4)) 
+          && ( (y==center-1 || y==center+1) && (z==center-1 || z==center+1)
+            || (y==center && (z==center-1 || z==center+1))
+            || (z==center && (y==center-1 || y==center+1)));
+      }
+
+      function cross(x,y,z) {
+        return ((x==center && y==center) || (x==center && y==center+1) || (x==center+1 && y==center) || (x==center-1 && y==center) || (x==center && y==center-1)) && z==center;
+      }
+      function cross3d(x,y,z) {
+        return (x==center && y==center && z==center) || (x==center && y==center+1 && z==center) || (x==center+1 && y==center && z==center) || (x==center-1 && y==center && z==center) || (x==center && y==center-1 && z==center) || (x==center && y==center && z==center+1) || (x==center && y==center && z==center-1);
+      }
+      function square(x,y,z,size=9,full=true) {
+        //Interesting in adjacent18 mode for size 9
+        return (x>=center-floor(size/2) && x<=center+floor(size/2))
+        &&  (y>=center-floor(size/2) && y<=center+floor(size/2))
+        && (full || (x==center+floor(size/2) || x==center-floor(size/2) || y==center+floor(size/2) || y==center-floor(size/2)))
+        && (z==center);
+      }
+
+      function cube(x,y,z,size=9,full=true) {
+        //Interesting in adjacent18 mode for size 9 and 11 (full) and in adjacent26 mode for size 7 (hollow)
+        return (x>=center-floor(size/2) && x<=center+floor(size/2))
+        &&  (y>=center-floor(size/2) && y<=center+floor(size/2))
+        &&  (z>=center-floor(size/2) && z<=center+floor(size/2))
+        && (full || (x==center+floor(size/2) || x==center-floor(size/2) || y==center+floor(size/2) || y==center-floor(size/2) || z==center+floor(size/2) || z==center-floor(size/2)));
+      }
+
+      //--- Defining several initial shapes ---//
+      function bigCross(x,y,z) {
+        return (x==center && y==center && z==center) 
+            || (x==center && y==center+1 && z==center) 
+            || (x==center+1 && y==center && z==center) 
+            || (x==center-1 && y==center && z==center) 
+            || (x==center && y==center+2 && z==center) 
+            || (x==center+2 && y==center && z==center) 
+            || (x==center-2 && y==center && z==center) 
+            || (x==center && y==center-1 && z==center) 
+            || (x==center && y==center && z==center+1) 
+            || (x==center && y==center && z==center-1)
+            || (x==center && y==center-2 && z==center) 
+            || (x==center && y==center && z==center+2) 
+            || (x==center && y==center && z==center-2);
+      }
+
+      function stick(x,y,z) {
+        return ((x==center && y==center) || (x==center && y==center+1) || (x==center && y==center-1)) && z==center;
+      }
+
+      function block(x,y,z) {
+        return ((x==center && y==center) || (x==center && y==center+1) || (x==center+1 && y==center) || (x==center+1 && y==center+1)) && z==center;
+      }
+
+      function hollowBlock3d(x,y,z) {
+        //Interesting in adjacent18 mode
+        return ((x==center+1 && y==center+1) 
+            || (x==center && y==center+1) 
+            || (x==center+1 && y==center) 
+            || (x==center && y==center-1) 
+            || (x==center-1 && y==center-1) 
+            || (x==center-1 && y==center) 
+            || (x==center-1 && y==center+1) 
+            || (x==center+1 && y==center-1)) 
+              && (z==center 
+              || z==center+1 
+              || z==center-1)
+            || (x==center && y==center && z==center+1)
+            || (x==center && y==center && z==center-1);
+      }
+
+      function block3d(x,y,z) {
+        //Interesting in adjacent18 mode
+        return ((x==center && y==center) || (x==center+1 && y==center+1) || (x==center && y==center+1) || (x==center+1 && y==center) || (x==center && y==center-1) || (x==center-1 && y==center-1) || (x==center-1 && y==center) || (x==center-1 && y==center+1) || (x==center+1 && y==center-1)) && (z==center || z==center+1 || z==center-1);
+      }
+
+      function newBlock3d(x,y,z) {
+        return ((x==center+1 && y==center+1) || (x==center && y==center+1) || (x==center+1 && y==center) || (x==center && y==center-1) || (x==center-1 && y==center-1) || (x==center-1 && y==center) || (x==center-1 && y==center+1) || (x==center+1 && y==center-1)) && (z==center || z==center+1 || z==center-1);
+      }
+
+      function beehive(x,y,z) {
+        return ((x==center && y==center) || (x==center+1 && y==center+1) || (x==center+1 && y==center-1) || (x==center+2 && y==center-1) || (x==center+2 && y==center+1) || (x==center+3 && y==center)) && z==center;
+      }
+
+      function boat(x,y,z) {
+        return ((x==center && y==center+1) || (x==center && y==center-1) || (x==center-1 && y==center) || (x==center+1 && y==center) || (x==center+1 && y==center-1)) && (z==center);
+      }
+
+      function doubleBoat(x,y,z) {
+        return ((x==center-2 && y==center+2) || (x==center-1 && y==center+2) || (x==center-2 && y==center+1) || (x==center && y==center+1) || (x==center && y==center-1) || (x==center-1 && y==center) || (x==center+1 && y==center) || (x==center+1 && y==center-1)) && (z==center);
+      }
+
+
+      function barge(x,y,z) {
+        //Nothing happens
+        return ((x==center && y==center+1) || (x==center && y==center-1) || (x==center-1 && y==center) || (x==center+1 && y==center) || (x==center+1 && y==center-2) || (x==center+2 && y==center-1)) && (z==center);
+      }
+
+
+
+    function onclick(point) {
+      console.log(point);
+    }
+
+
+    // create some shortcuts to math functions
+      var sqrt = Math.sqrt;
+      var round = Math.round;
+      var floor = Math.floor;
+      var pow = Math.pow;
+      var random = Math.random;
+      var center = Math.floor(cubeSide/2);
+
+    // Called when the Visualization API is loaded.
+    var time = 0;
+    function drawVisualization() {
+      // create the data table.
+      data = new vis.DataSet();
+
+      
+
+      var imax = cubeSide;
+      var jmax = cubeSide;
+      var kmax = cubeSide;
+      var x, y, z;
+      for (var i=0; i<imax; i++){
+        for (var j=0; j<jmax; j++){
+          for(var k=0; k<kmax; k++){ 
+            x = i; 
+            y = j;
+            z = k;
+            if(cube(x,y,z,9,false)) {
+              var style = sqrt(pow(x-center, 2) + pow(y-center, 2) + pow(z-center, 2))*colorAmplitude;
+              data.add({x:x,y:y,z:z,style:style});
+            }
+          }
+        }
+      }
+
+      // specify options
+      var options = {
+        width:  '600px',
+        height: '600px',
+        style: 'dot-color',
+        showPerspective: true,
+        showGrid: true,
+        keepAspectRatio: true,
+        verticalRatio: 1.0,
+        onclick: onclick,
+        valueMax: cubeSide/2,
+        valueMin: 0,
+        xMin: 0,
+        yMin: 0,
+        zMin: 0,
+        xMax: cubeSide,
+        yMax: cubeSide,
+        zMax: cubeSide,
+        cameraPosition: {
+          horizontal: -0.35,
+          vertical: 0.22,
+          distance: 1.8
+        }
+      };
+
+      // create our graph
+      var container = document.getElementById('mygraph');
+      graph = new vis.Graph3d(container, data, options);
+    }
+
+    function updateData() {
+      // console.log("---Nouvel update---");
+      // create the data table.
+      newData = new vis.DataSet();
+      // stableIteration = stableIteration +1;
+      // console.log(stableIteration);
+
+      //-------- Nouvelle boucle --------//
+      var nbOfNeighbours = new Map();
+      // console.log(data);
+      for(var cell of data.get()) {
+        // console.log(cell);
+        //Getting its neighbours
+        neighbourCells = data.get({
+          filter: function (item) {
+            //console.log(item.x, item.y, item.z);
+            //taking all the cells that are in the neighbourhood of our current X,Y,Z cell
+            // console.log('cell in filter : ' + cell);
+            return (item.x <= cell.x + 1 && item.x >= cell.x - 1)
+                && (item.y <= cell.y + 1 && item.y >= cell.y - 1)
+                && (item.z <= cell.z + 1 && item.z >= cell.z - 1)
+                && !(item.x == cell.x && item.y == cell.y && item.z == cell.z); //checking we are not counting the current XYZ cell
+          }
+        });
+        //Counting the living neighbours :
+        //Rule #1, #2 and #3, stays alive only if 2 or 3 neighbours
+        if(neighbourCells.length <= 8 && neighbourCells.length >=2) {
+          newData.add(cell);
+        }
+        // else {
+        //   stableIteration=0;
+        // }
+        
+        for(var i=-1; i<=1; i++) {
+          for(var j=-1; j<=1; j++) {
+            for(var k=-1; k<=1; k++) {
+              //Checking we are not to far from the cell
+              if (i!=0 || j!=0 || k!=0) {
+                  // &&( (adjacentMode=='adjacent26')
+                  //   ||((adjacentMode=='adjacent18'||adjacentMode=='adjacent6') && !(i==0 || j==0 || k==0))
+                  //   ||(adjacentMode=='adjacent6' && !((i*j*k==0) && (i!=0 || j!=0 || k!=0))))) {
+                X = cell.x + i;
+                Y = cell.y + j;
+                Z = cell.z + k;
+                if(X <= cubeSide && X >= 0 && Y <= cubeSide && Y >= 0 && Z <= cubeSide && Z >= 0) {
+                  // console.log(i, j, k);
+                  //Checking this cell is dead
+                  var tmp = data.get({
+                    filter: function (item) {
+                      return (item.x == X && item.y == Y && item.z == Z);
+                    }
+                  });
+                  // console.log(tmp);
+                  if(tmp.length==0) { //ie if the cell is dead
+                    // console.log('dead cell, incrementing neighbours');
+                    //incrementing the number of neighbours of this dead cell
+                    var id = X + Y * cubeSide + Z*pow(cubeSide,2);
+                    if(id < pow(cubeSide,3)) {
+                      if(nbOfNeighbours.has(id)) {
+                        // console.log("Already exsists")
+                        var currentNb = nbOfNeighbours.get(id);
+                      }
+                      else {
+                        // console.log("Didn't exsist")
+                        var currentNb = 0;
+                      }
+                      // console.log("Seting value at " + currentNb+1);
+                      nbOfNeighbours.set(id, currentNb + 1); 
+                    }
+                  }
+                }
+              }
+            }
+          } 
+        }
+
+      }
+
+      // console.log(nbOfNeighbours);
+      // console.log(nbOfNeighbours);
+      for (var [id, nb] of nbOfNeighbours.entries()) {
+        if(nb == 5) {
+          // console.log('born !');
+          var z = floor(id/(cubeSide*cubeSide));
+          var y = floor(id/cubeSide)%cubeSide;
+          // var y = floor(id-z*cubeSide*cubeSide)/cubeSide;
+          var x = id%cubeSide;
+          // console.log(x,y,z);
+          if(id < pow(cubeSide,3) && x <= cubeSide && x >= 0 && y <= cubeSide && y >= 0 && z <= cubeSide && z >= 0) {
+            // var style = 0.001;
+            var style = sqrt(pow(x-center, 2) + pow(y-center, 2) + pow(z-center, 2))*colorAmplitude;
+            // console.log(id,x,y,z);
+            stableIteration=0;
+            newData.add({x:x, y:y, z:z, style:style});
+          }
+        }
+      }
+
+/*
+      //-------- Ancienne boucle --------//
+      for(var X = 0; X<cubeSide; X++) {
+        for(var Y = 0; Y<cubeSide; Y++) {
+          for(var Z = 0; Z<cubeSide; Z++) {
+            //Getting our current cell :
+            var currentCell = data.get({
+              filter: function(item) {
+                return (item.x == X && item.y == Y && item.z == Z);
+              }
+            })[0];
+
+
+            //Getting its neighbours
+            neighbours = 0;
+            neighbourCells = null;
+            neighbourCells = data.get({
+              filter: function (item) {
+                //console.log(item.x, item.y, item.z);
+                //taking all the cells that are in the neighbourhood of our current X,Y,Z cell
+                return (item.x <= X + 1 && item.x >= X - 1)
+                    && (item.y <= Y + 1 && item.y >= Y - 1)
+                    && (item.z <= Z + 1 && item.z >= Z - 1)
+                    && !(item.x == X && item.y == Y && item.z == Z); //checking we are not counting the current XYZ cell
+              }
+            });
+            //Counting the living neighbours :
+            for (n in neighbourCells) {
+              if(neighbourCells) {
+                //console.log('living neighbour');
+                neighbours++;
+              }
+            }
+
+            // console.log('current cell is ' + currentCell.state + ' and has ' + neighbours + ' neighbours')
+            //If current cell exists, considered alive
+            if(currentCell) {
+              // console.log('alive, has ' + neighbours + ' neighbours');
+              //Rule #1, #2 and #3, stays alive only if 2 or 3 neighbours
+              if(neighbours == 3 || neighbours == 2) {
+                newData.add(currentCell);
+              }
+            }
+            //else, it's considered dead
+            else {
+              if(neighbours == 3) {
+                var style = sqrt(pow(X-center, 2) + pow(Y-center, 2) + pow(Z-center, 2))*colorAmplitude;
+                newData.add({x:X,y:Y,z:Z,style:style});
+              }
+            }
+            
+            
+          }
+        } 
+      }
+      time++;
+      */
+
+      // create our graph
+      // var container = document.getElementById('mygraph');
+      // console.log(nbOfNeighbours);
+
+      // if (stableIteration >=2) {
+      //   var x, y, z;
+      //   console.log('new cube');
+      //   for (var i=0; i<cubeSide; i++){
+      //     for (var j=0; j<cubeSide; j++){
+      //       for(var k=0; k<cubeSide; k++){ 
+      //         x = i; 
+      //         y = j;
+      //         z = k;
+      //         if(cube(x,y,z,5,true)) {
+      //           var style = sqrt(pow(x-center, 2) + pow(y-center, 2) + pow(z-center, 2))*colorAmplitude;
+      //           newData.add({x:x,y:y,z:z,style:style});
+      //         }
+      //       }
+      //     }
+      //   }
+      //   stableIteration=0;
+      // }
+
+      if(!newData.length) {
+        graph = null;
+        clearInterval(interval);
+        alert("everybody's dead :(");
+      }
+      else {
+        data = newData;
+        graph.setData(data);
+      }
+    }
+
+
+  </script>
+  
+</head>
+
+<body onload="drawVisualization()">
+<div id="mygraph"></div>
+<button onclick="clearInterval(interval)">Pause</button>
+<button onclick="updateData()">Manual update</button>
+<select id="adjacentMode" name="adjacentMode">
+  <option value="adjacent18">Adjacent 18</option>
+  <option value="adjacent26">Adjacent 26</option>
+</select>
+<!-- <input type="submit" onclick="adjacentMode=value"> -->
+
+<button onclick="reloadParameters()">Clic</button>
+
+<div id="info"></div>
+</body>
+</html>
